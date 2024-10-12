@@ -21,26 +21,22 @@ int main()
     int addrlen = sizeof(address);
     char buffer[BUFFER_SIZE] = {0};
 
-    // Create socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
     {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
 
-    // Configure server address
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    // Bind the socket
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0)
     {
         perror("Bind failed");
         exit(EXIT_FAILURE);
     }
 
-    // Listen for incoming connections
     if (listen(server_fd, 3) < 0)
     {
         perror("Listen failed");
@@ -49,7 +45,6 @@ int main()
 
     printf("Server is listening on port %d...\n", PORT);
 
-    // Accept a connection
     if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
     {
         perror("Accept failed");
@@ -58,27 +53,31 @@ int main()
 
     printf("Connection accepted!\n");
 
-    // Send and receive messages
     while (1)
     {
         memset(buffer, 0, BUFFER_SIZE);
 
-        // Receive message from client
         int bytesRead = recv(new_socket, buffer, BUFFER_SIZE, 0);
         if (bytesRead <= 0)
         {
-            printf("Connection closed or error occurred\n");
+            printf("Connection closed or error occurred. Bytes read: %d\n", bytesRead);
             break;
         }
         printf("Client: %s\n", buffer);
+        fflush(stdout);
 
-        // Send response back to client
         printf("You: ");
         fgets(buffer, BUFFER_SIZE, stdin);
+
+        size_t len = strlen(buffer);
+        if (len > 0 && buffer[len - 1] == '\n')
+        {
+            buffer[len - 1] = '\0';
+        }
+
         send(new_socket, buffer, strlen(buffer), 0);
     }
 
-    // Clean up
     closesocket(new_socket);
     closesocket(server_fd);
     WSACleanup();
