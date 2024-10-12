@@ -14,7 +14,7 @@ then the client :
 ./client.exe
 The client will connect to the server running on 127.0.0.1 (localhost).
 
-can start chatting now! <3
+You can start chatting now! <3
 
 
 
