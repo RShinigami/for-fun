@@ -1,0 +1,2 @@
+Player: adam, Time: 24 seconds, Difficulty: Easy
+Player: rayen, Time: 14 seconds, Difficulty: Easy

@@ -1,279 +1,226 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <ctype.h>
+#include <string.h>
 
-#define MAX_SIZE 9
-#define MAX_MINES 10
+#define ROWS 9
+#define COLS 9
+#define MINES_EASY 10
+#define MINES_MEDIUM 20
+#define MINES_HARD 30
+#define MAX_SCORES 100
 
-char board[MAX_SIZE][MAX_SIZE];
-char display[MAX_SIZE][MAX_SIZE];
-int size, mines;
+typedef struct {
+    char name[50];
+    int time;
+    char difficulty[10];
+} Score;
 
-// Struct to hold game settings
-typedef struct
-{
-    int size;
-    int mines;
-    int timer;
-} GameSettings;
+Score scores[MAX_SCORES];
+int scoreCount = 0;
 
-GameSettings currentSettings;
-
-// Function prototypes
-void setupBoard();
-void placeMines();
-void calculateAdjacentMines();
-void displayBoard();
-int openCell(int row, int col);
-int isGameWon();
-void revealAllMines();
-void saveScore(int timeTaken);
-void showScoreboard();
-
-void setupBoard()
-{
-    for (int i = 0; i < currentSettings.size; i++)
-    {
-        for (int j = 0; j < currentSettings.size; j++)
-        {
-            board[i][j] = '-';
-            display[i][j] = '-';
-        }
-    }
-    placeMines();
-    calculateAdjacentMines();
-}
-
-void placeMines()
-{
-    int placedMines = 0;
-    while (placedMines < currentSettings.mines)
-    {
-        int row = rand() % currentSettings.size;
-        int col = rand() % currentSettings.size;
-        if (board[row][col] != '*')
-        {
-            board[row][col] = '*';
-            placedMines++;
-        }
-    }
-}
-
-void calculateAdjacentMines()
-{
-    for (int i = 0; i < currentSettings.size; i++)
-    {
-        for (int j = 0; j < currentSettings.size; j++)
-        {
-            if (board[i][j] == '*')
-                continue;
-            int mineCount = 0;
-            for (int x = -1; x <= 1; x++)
-            {
-                for (int y = -1; y <= 1; y++)
-                {
-                    int newRow = i + x;
-                    int newCol = j + y;
-                    if (newRow >= 0 && newRow < currentSettings.size && newCol >= 0 && newCol < currentSettings.size)
-                    {
-                        if (board[newRow][newCol] == '*')
-                            mineCount++;
-                    }
-                }
-            }
-            board[i][j] = mineCount + '0';
-        }
-    }
-}
-
-void displayBoard()
-{
-    printf("\n   ");
-    for (int i = 0; i < currentSettings.size; i++)
-    {
-        printf("%d ", i);
+void displayBoard(char board[ROWS][COLS], int revealMines) {
+    printf("   ");
+    for (int i = 0; i < COLS; i++) {
+        printf("%2d ", i);
     }
     printf("\n");
 
-    for (int i = 0; i < currentSettings.size; i++)
-    {
-        printf("%d  ", i);
-        for (int j = 0; j < currentSettings.size; j++)
-        {
-            printf("%c ", display[i][j]);
+    for (int i = 0; i < ROWS; i++) {
+        printf("%2d ", i);
+        for (int j = 0; j < COLS; j++) {
+            if (revealMines) {
+                printf("%2c ", board[i][j]);
+            } else {
+                printf("%2c ", (board[i][j] == '*') ? '-' : board[i][j]);
+            }
         }
         printf("\n");
     }
-    printf("\n");
 }
 
-int openCell(int row, int col)
-{
-    if (row < 0 || row >= currentSettings.size || col < 0 || col >= currentSettings.size || display[row][col] != '-')
-    {
-        return 0;
-    }
+void initializeBoard(char board[ROWS][COLS], int mineCount) {
+    srand(time(NULL));
+    memset(board, '-', sizeof(char) * ROWS * COLS);
 
-    if (board[row][col] == '*')
-    {
-        revealAllMines();
-        return -1;
+    for (int i = 0; i < mineCount; i++) {
+        int row, col;
+        do {
+            row = rand() % ROWS;
+            col = rand() % COLS;
+        } while (board[row][col] == '*');
+        board[row][col] = '*';
     }
+}
 
-    display[row][col] = board[row][col];
-    if (board[row][col] == '0')
-    {
-        for (int x = -1; x <= 1; x++)
-        {
-            for (int y = -1; y <= 1; y++)
-            {
-                openCell(row + x, col + y);
+int isMine(char board[ROWS][COLS], int row, int col) {
+    return board[row][col] == '*';
+}
+
+void revealCell(char board[ROWS][COLS], char display[ROWS][COLS], int row, int col) {
+    if (row < 0 || row >= ROWS || col < 0 || col >= COLS || display[row][col] != '-') return;
+
+    int mineCount = 0;
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            int newRow = row + i, newCol = col + j;
+            if (newRow >= 0 && newRow < ROWS && newCol >= 0 && newCol < COLS && isMine(board, newRow, newCol)) {
+                mineCount++;
             }
         }
     }
-    return 0;
-}
 
-int isGameWon()
-{
-    for (int i = 0; i < currentSettings.size; i++)
-    {
-        for (int j = 0; j < currentSettings.size; j++)
-        {
-            if (display[i][j] == '-' && board[i][j] != '*')
-            {
-                return 0;
-            }
-        }
-    }
-    return 1;
-}
-
-void revealAllMines()
-{
-    for (int i = 0; i < currentSettings.size; i++)
-    {
-        for (int j = 0; j < currentSettings.size; j++)
-        {
-            if (board[i][j] == '*')
-            {
-                display[i][j] = '*';
+    if (mineCount > 0) {
+        display[row][col] = '0' + mineCount;
+    } else {
+        display[row][col] = ' ';
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                if (i != 0 || j != 0) {
+                    revealCell(board, display, row + i, col + j);
+                }
             }
         }
     }
 }
 
-void saveScore(int timeTaken)
-{
-    char playerName[30];
+int checkWin(char display[ROWS][COLS], int totalMines) {
+    int unrevealed = 0;
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLS; j++) {
+            if (display[i][j] == '-') unrevealed++;
+        }
+    }
+    return unrevealed == totalMines;
+}
+
+void loadScores() {
+    FILE *file = fopen("scores.txt", "r");
+    if (file == NULL) return;
+
+    scoreCount = 0;
+    while (fscanf(file, "Player: %[^,], Time: %d seconds , Difficulty : %s\n", scores[scoreCount].name, &scores[scoreCount].time, scores[scoreCount].difficulty) == 3) {
+        scoreCount++;
+    }
+    fclose(file);
+}
+
+void saveScore(int time, const char* difficulty) {
+    char name[50];
     printf("Enter your name: ");
-    scanf("%s", playerName);
+    scanf("%s", name);
 
-    FILE *file = fopen("scoreboard.txt", "a");
-    if (file == NULL)
-    {
-        printf("Error opening scoreboard file.\n");
+    FILE *file = fopen("scores.txt", "a");
+    if (file == NULL) {
+        printf("Unable to save score.\n");
         return;
     }
-
-    fprintf(file, "Player: %s, Time: %d seconds\n", playerName, timeTaken);
+    fprintf(file, "Player: %s, Time: %d seconds , Difficulty : %s\n", name, time, difficulty);
     fclose(file);
 }
 
-void showScoreboard()
-{
-    FILE *file = fopen("scoreboard.txt", "r");
-    if (file == NULL)
-    {
-        printf("No scores recorded yet.\n");
+void showScoreboard() {
+    loadScores();
+    if (scoreCount == 0) {
+        printf("No scores to display.\n");
         return;
     }
 
-    char line[100];
-    while (fgets(line, sizeof(line), file) != NULL)
-    {
-        printf("%s", line);
+    printf("\n--- Scoreboard ---\n");
+    for (int i = 0; i < scoreCount; i++) {
+        printf("Player: %s, Time: %d seconds , Difficulty : %s\n", scores[i].name, scores[i].time, scores[i].difficulty);
     }
-    fclose(file);
+    printf("------------------\n");
 }
 
-int main()
-{
-    int row, col, gameStatus, levelChoice;
-    char choice;
+void playGame(int mineCount, const char* difficulty) {
+    char board[ROWS][COLS];
+    char display[ROWS][COLS];
+    int gameOver = 0;
 
-    srand(time(0));
-
-    printf("Welcome to Minesweeper!\n");
-    printf("Select difficulty level:\n1. Easy (5x5, 3 mines)\n2. Medium (7x7, 8 mines)\n3. Hard (9x9, 10 mines)\n");
-    scanf("%d", &levelChoice);
-
-    switch (levelChoice)
-    {
-    case 1:
-        currentSettings.size = 5;
-        currentSettings.mines = 3;
-        break;
-    case 2:
-        currentSettings.size = 7;
-        currentSettings.mines = 8;
-        break;
-    case 3:
-        currentSettings.size = 9;
-        currentSettings.mines = 10;
-        break;
-    default:
-        printf("Invalid choice, defaulting to Easy.\n");
-        currentSettings.size = 5;
-        currentSettings.mines = 3;
-        break;
-    }
-
-    setupBoard();
+    initializeBoard(board, mineCount);
+    memset(display, '-', sizeof(char) * ROWS * COLS);
 
     clock_t startTime = clock();
 
-    while (1)
-    {
-        displayBoard();
-        printf("Enter row and column (e.g., 2 3): ");
+    while (!gameOver) {
+        displayBoard(display, 0);
+        int row, col;
+        printf("Enter row and column: ");
         scanf("%d %d", &row, &col);
 
-        gameStatus = openCell(row, col);
-        if (gameStatus == -1)
-        {
-            displayBoard();
-            printf("Game Over! You hit a mine!\n");
+        if (isMine(board, row, col)) {
+            printf("Game Over! You hit a mine.\n");
+            displayBoard(board, 1);
             break;
         }
 
-        if (isGameWon())
-        {
-            displayBoard();
-            printf("Congratulations! You've won the game!\n");
-            clock_t endTime = clock();
-            int timeTaken = (int)(endTime - startTime) / CLOCKS_PER_SEC;
+        revealCell(board, display, row, col);
 
-            printf("You completed the game in %d seconds.\n", timeTaken);
-            printf("Would you like to save your score? (y/n): ");
+        if (checkWin(display, mineCount)) {
+            clock_t endTime = clock();
+            int timeTaken = (endTime - startTime) / CLOCKS_PER_SEC;
+            printf("Congratulations! You won in %d seconds.\n", timeTaken);
+            displayBoard(board, 1);
+            char choice;
+            printf("Do you want to save your score? (y/n): ");
             scanf(" %c", &choice);
 
-            if (tolower(choice) == 'y')
-            {
-                saveScore(timeTaken);
+            if (choice == 'y' || choice == 'Y') {
+                saveScore(timeTaken, difficulty);
             }
 
+            showScoreboard();
             break;
         }
     }
+}
 
-    printf("\nWould you like to see the scoreboard? (y/n): ");
-    scanf(" %c", &choice);
-    if (tolower(choice) == 'y')
-    {
-        showScoreboard();
-    }
+int main() {
+    int choice;
+    do {
+        printf("\n--- Minesweeper Game ---\n");
+        printf("1. Play Game\n");
+        printf("2. Show Scoreboard\n");
+        printf("3. Exit\n");
+        printf("Choose an option: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: {
+                int difficultyChoice;
+                printf("Select Difficulty: \n1. Easy\n2. Medium\n3. Hard\n");
+                scanf("%d", &difficultyChoice);
+
+                int mines = 0;
+                char difficulty[10];
+                if (difficultyChoice == 1) {
+                    mines = MINES_EASY;
+                    strcpy(difficulty, "Easy");
+                } else if (difficultyChoice == 2) {
+                    mines = MINES_MEDIUM;
+                    strcpy(difficulty, "Medium");
+                } else if (difficultyChoice == 3) {
+                    mines = MINES_HARD;
+                    strcpy(difficulty, "Hard");
+                } else {
+                    printf("Invalid difficulty choice.\n");
+                    continue;
+                }
+
+                playGame(mines, difficulty);
+                break;
+            }
+            case 2:
+                showScoreboard();
+                break;
+            case 3:
+                printf("Exiting the game. Thanks for playing!\n");
+                break;
+            default:
+                printf("Invalid choice. Please try again.\n");
+        }
+    } while (choice != 3);
 
     return 0;
 }
