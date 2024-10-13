@@ -1,159 +1,279 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <ctype.h>
 
-#define SIZE 9
-#define MINES 10
+#define MAX_SIZE 9
+#define MAX_MINES 10
 
-char board[SIZE][SIZE];        
-char hiddenBoard[SIZE][SIZE];  
-int revealedCells = 0;
+char board[MAX_SIZE][MAX_SIZE];
+char display[MAX_SIZE][MAX_SIZE];
+int size, mines;
 
+// Struct to hold game settings
+typedef struct
+{
+    int size;
+    int mines;
+    int timer;
+} GameSettings;
 
-void initializeBoards();
+GameSettings currentSettings;
+
+// Function prototypes
+void setupBoard();
 void placeMines();
-void calculateHints();
+void calculateAdjacentMines();
 void displayBoard();
-int isValid(int row, int col);
-void revealCell(int row, int col);
-int playGame();
+int openCell(int row, int col);
+int isGameWon();
+void revealAllMines();
+void saveScore(int timeTaken);
+void showScoreboard();
 
-int main() {
-    int result;
-    initializeBoards();
+void setupBoard()
+{
+    for (int i = 0; i < currentSettings.size; i++)
+    {
+        for (int j = 0; j < currentSettings.size; j++)
+        {
+            board[i][j] = '-';
+            display[i][j] = '-';
+        }
+    }
     placeMines();
-    calculateHints();
+    calculateAdjacentMines();
+}
 
-    printf("Welcome to Minesweeper!\n");
+void placeMines()
+{
+    int placedMines = 0;
+    while (placedMines < currentSettings.mines)
+    {
+        int row = rand() % currentSettings.size;
+        int col = rand() % currentSettings.size;
+        if (board[row][col] != '*')
+        {
+            board[row][col] = '*';
+            placedMines++;
+        }
+    }
+}
 
-    
-    result = playGame();
-
-    if (result == 1) {
-        printf("Congratulations! You've cleared the minefield!\n");
-    } else {
-        printf("You hit a mine! Game Over!\n");
-        
-        for (int i = 0; i < SIZE; i++) {
-            for (int j = 0; j < SIZE; j++) {
-                if (hiddenBoard[i][j] == '*') {
-                    board[i][j] = '*';
+void calculateAdjacentMines()
+{
+    for (int i = 0; i < currentSettings.size; i++)
+    {
+        for (int j = 0; j < currentSettings.size; j++)
+        {
+            if (board[i][j] == '*')
+                continue;
+            int mineCount = 0;
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    int newRow = i + x;
+                    int newCol = j + y;
+                    if (newRow >= 0 && newRow < currentSettings.size && newCol >= 0 && newCol < currentSettings.size)
+                    {
+                        if (board[newRow][newCol] == '*')
+                            mineCount++;
+                    }
                 }
             }
-        }
-        displayBoard();
-    }
-
-    return 0;
-}
-
-
-void initializeBoards() {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            board[i][j] = '-';         
-            hiddenBoard[i][j] = '-';   
+            board[i][j] = mineCount + '0';
         }
     }
 }
 
-
-void placeMines() {
-    int count = 0;
-    int row, col;
-    srand(time(0));
-
-    while (count < MINES) {
-        row = rand() % SIZE;
-        col = rand() % SIZE;
-
-        if (hiddenBoard[row][col] != '*') {
-            hiddenBoard[row][col] = '*';
-            count++;
-        }
+void displayBoard()
+{
+    printf("\n   ");
+    for (int i = 0; i < currentSettings.size; i++)
+    {
+        printf("%d ", i);
     }
-}
-
-void calculateHints() {
-    int dx[] = {-1, -1, -1, 0, 0, 1, 1, 1};
-    int dy[] = {-1, 0, 1, -1, 1, -1, 0, 1};
-
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            if (hiddenBoard[i][j] == '*') continue;
-
-            int minesCount = 0;
-            for (int d = 0; d < 8; d++) {
-                int newRow = i + dx[d];
-                int newCol = j + dy[d];
-
-                if (isValid(newRow, newCol) && hiddenBoard[newRow][newCol] == '*') {
-                    minesCount++;
-                }
-            }
-            hiddenBoard[i][j] = minesCount + '0'; 
-        }
-    }
-}
-
-
-int isValid(int row, int col) {
-    return (row >= 0 && row < SIZE && col >= 0 && col < SIZE);
-}
-
-
-void displayBoard() {
-    printf("  ");
-    for (int i = 0; i < SIZE; i++) printf("%d ", i);
     printf("\n");
 
-    for (int i = 0; i < SIZE; i++) {
-        printf("%d ", i);
-        for (int j = 0; j < SIZE; j++) {
-            printf("%c ", board[i][j]);
+    for (int i = 0; i < currentSettings.size; i++)
+    {
+        printf("%d  ", i);
+        for (int j = 0; j < currentSettings.size; j++)
+        {
+            printf("%c ", display[i][j]);
         }
         printf("\n");
     }
+    printf("\n");
 }
 
+int openCell(int row, int col)
+{
+    if (row < 0 || row >= currentSettings.size || col < 0 || col >= currentSettings.size || display[row][col] != '-')
+    {
+        return 0;
+    }
 
-void revealCell(int row, int col) {
-    if (!isValid(row, col) || board[row][col] != '-') return;
+    if (board[row][col] == '*')
+    {
+        revealAllMines();
+        return -1;
+    }
 
-    board[row][col] = hiddenBoard[row][col];
-    revealedCells++;
+    display[row][col] = board[row][col];
+    if (board[row][col] == '0')
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            for (int y = -1; y <= 1; y++)
+            {
+                openCell(row + x, col + y);
+            }
+        }
+    }
+    return 0;
+}
 
-    if (hiddenBoard[row][col] == '0') {
-        int dx[] = {-1, -1, -1, 0, 0, 1, 1, 1};
-        int dy[] = {-1, 0, 1, -1, 1, -1, 0, 1};
-        for (int d = 0; d < 8; d++) {
-            int newRow = row + dx[d];
-            int newCol = col + dy[d];
-            revealCell(newRow, newCol);
+int isGameWon()
+{
+    for (int i = 0; i < currentSettings.size; i++)
+    {
+        for (int j = 0; j < currentSettings.size; j++)
+        {
+            if (display[i][j] == '-' && board[i][j] != '*')
+            {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+void revealAllMines()
+{
+    for (int i = 0; i < currentSettings.size; i++)
+    {
+        for (int j = 0; j < currentSettings.size; j++)
+        {
+            if (board[i][j] == '*')
+            {
+                display[i][j] = '*';
+            }
         }
     }
 }
 
+void saveScore(int timeTaken)
+{
+    char playerName[30];
+    printf("Enter your name: ");
+    scanf("%s", playerName);
 
-int playGame() {
-    int row, col;
+    FILE *file = fopen("scoreboard.txt", "a");
+    if (file == NULL)
+    {
+        printf("Error opening scoreboard file.\n");
+        return;
+    }
 
-    while (revealedCells < SIZE * SIZE - MINES) {
+    fprintf(file, "Player: %s, Time: %d seconds\n", playerName, timeTaken);
+    fclose(file);
+}
+
+void showScoreboard()
+{
+    FILE *file = fopen("scoreboard.txt", "r");
+    if (file == NULL)
+    {
+        printf("No scores recorded yet.\n");
+        return;
+    }
+
+    char line[100];
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        printf("%s", line);
+    }
+    fclose(file);
+}
+
+int main()
+{
+    int row, col, gameStatus, levelChoice;
+    char choice;
+
+    srand(time(0));
+
+    printf("Welcome to Minesweeper!\n");
+    printf("Select difficulty level:\n1. Easy (5x5, 3 mines)\n2. Medium (7x7, 8 mines)\n3. Hard (9x9, 10 mines)\n");
+    scanf("%d", &levelChoice);
+
+    switch (levelChoice)
+    {
+    case 1:
+        currentSettings.size = 5;
+        currentSettings.mines = 3;
+        break;
+    case 2:
+        currentSettings.size = 7;
+        currentSettings.mines = 8;
+        break;
+    case 3:
+        currentSettings.size = 9;
+        currentSettings.mines = 10;
+        break;
+    default:
+        printf("Invalid choice, defaulting to Easy.\n");
+        currentSettings.size = 5;
+        currentSettings.mines = 3;
+        break;
+    }
+
+    setupBoard();
+
+    clock_t startTime = clock();
+
+    while (1)
+    {
         displayBoard();
-        printf("Enter row and column to reveal (e.g., 2 3): ");
+        printf("Enter row and column (e.g., 2 3): ");
         scanf("%d %d", &row, &col);
 
-        if (!isValid(row, col)) {
-            printf("Invalid input. Try again.\n");
-            continue;
+        gameStatus = openCell(row, col);
+        if (gameStatus == -1)
+        {
+            displayBoard();
+            printf("Game Over! You hit a mine!\n");
+            break;
         }
 
-        if (hiddenBoard[row][col] == '*') {
-            return 0; 
-        }
+        if (isGameWon())
+        {
+            displayBoard();
+            printf("Congratulations! You've won the game!\n");
+            clock_t endTime = clock();
+            int timeTaken = (int)(endTime - startTime) / CLOCKS_PER_SEC;
 
-        revealCell(row, col);
+            printf("You completed the game in %d seconds.\n", timeTaken);
+            printf("Would you like to save your score? (y/n): ");
+            scanf(" %c", &choice);
+
+            if (tolower(choice) == 'y')
+            {
+                saveScore(timeTaken);
+            }
+
+            break;
+        }
     }
 
-    return 1; 
+    printf("\nWould you like to see the scoreboard? (y/n): ");
+    scanf(" %c", &choice);
+    if (tolower(choice) == 'y')
+    {
+        showScoreboard();
+    }
+
+    return 0;
 }
