@@ -4,6 +4,13 @@
 
 #define SIZE 9
 
+// To track hints usage
+int hintsRemaining;
+
+// Timer-related variables
+time_t startTime, endTime;
+
+// Function to print the Sudoku board with clearer formatting
 void printBoard(int board[SIZE][SIZE])
 {
     printf("    1 2 3   4 5 6   7 8 9\n");
@@ -35,6 +42,7 @@ void printBoard(int board[SIZE][SIZE])
     printf("  +-------+-------+-------+\n");
 }
 
+// Check if it's safe to place a number
 int isSafe(int board[SIZE][SIZE], int row, int col, int num)
 {
     for (int x = 0; x < SIZE; x++)
@@ -44,7 +52,6 @@ int isSafe(int board[SIZE][SIZE], int row, int col, int num)
             return 0;
         }
     }
-
     int startRow = row - row % 3, startCol = col - col % 3;
     for (int i = 0; i < 3; i++)
     {
@@ -59,6 +66,7 @@ int isSafe(int board[SIZE][SIZE], int row, int col, int num)
     return 1;
 }
 
+// Solve the Sudoku board
 int solveSudoku(int board[SIZE][SIZE], int row, int col)
 {
     if (row == SIZE - 1 && col == SIZE)
@@ -89,9 +97,10 @@ int solveSudoku(int board[SIZE][SIZE], int row, int col)
     return 0;
 }
 
+// Randomly remove digits from the board based on difficulty
 void removeDigits(int board[SIZE][SIZE], int level)
 {
-    int attempts = level * 10; // More attempts for harder difficulties
+    int attempts = level * 10;
     while (attempts > 0)
     {
         int row = rand() % SIZE;
@@ -104,6 +113,7 @@ void removeDigits(int board[SIZE][SIZE], int level)
     }
 }
 
+// Generate a random Sudoku puzzle
 void generateSudoku(int board[SIZE][SIZE], int level)
 {
     int baseBoard[SIZE][SIZE] = {
@@ -117,7 +127,7 @@ void generateSudoku(int board[SIZE][SIZE], int level)
         {2, 8, 7, 4, 1, 9, 6, 3, 5},
         {3, 4, 5, 2, 8, 6, 1, 7, 9}};
 
-    // Shuffle and prepare the board
+    // Prepare the board by copying the base
     for (int i = 0; i < SIZE; i++)
     {
         for (int j = 0; j < SIZE; j++)
@@ -126,20 +136,49 @@ void generateSudoku(int board[SIZE][SIZE], int level)
         }
     }
 
-    // Randomly remove digits based on difficulty
+    // Remove digits for the difficulty level
     removeDigits(board, level);
 }
 
-void playSudoku(int board[SIZE][SIZE])
+// Give hints to the player (limited based on difficulty)
+void giveHint(int board[SIZE][SIZE], int solution[SIZE][SIZE])
+{
+    if (hintsRemaining > 0)
+    {
+        int row, col;
+        do
+        {
+            row = rand() % SIZE;
+            col = rand() % SIZE;
+        } while (board[row][col] != 0);
+        board[row][col] = solution[row][col];
+        hintsRemaining--;
+        printf("Hint provided at row %d, column %d.\n", row + 1, col + 1);
+    }
+    else
+    {
+        printf("No hints remaining!\n");
+    }
+}
+
+// Function to play the Sudoku game
+void playSudoku(int board[SIZE][SIZE], int solution[SIZE][SIZE])
 {
     int row, col, num;
+    startTime = time(NULL); // Start the timer
+
     while (1)
     {
         printBoard(board);
-        printf("Enter row (1-9), column (1-9), and number (1-9) (0 to exit): ");
+        printf("Enter row (1-9), column (1-9), and number (1-9) (0 to exit, -1 for hint): ");
         scanf("%d %d %d", &row, &col, &num);
         if (row == 0 || col == 0 || num == 0)
             break;
+        if (row == -1)
+        {
+            giveHint(board, solution);
+            continue;
+        }
         if (row < 1 || row > 9 || col < 1 || col > 9 || num < 1 || num > 9)
         {
             printf("Invalid input! Please try again.\n");
@@ -154,8 +193,13 @@ void playSudoku(int board[SIZE][SIZE])
             printf("Invalid move. Try again.\n");
         }
     }
+
+    endTime = time(NULL);
+    int timeTaken = (int)difftime(endTime, startTime);
+    printf("Time taken: %d seconds\n", timeTaken);
 }
 
+// Print the instructions for the user
 void printInstructions()
 {
     printf("Welcome to the Sudoku Game!\n");
@@ -164,30 +208,35 @@ void printInstructions()
     printf("2. A Sudoku puzzle will be generated with some cells pre-filled.\n");
     printf("3. Your goal is to fill in the empty cells to complete the puzzle.\n");
     printf("4. To play, enter the row number (1-9), column number (1-9), and the number (1-9).\n");
-    printf("5. You can exit the game by entering '0 0 0' at any time.\n");
+    printf("5. You can exit by entering '0 0 0' or get hints by entering '-1 -1 -1'.\n");
     printf("6. Good luck and have fun!\n\n");
 }
 
+// Main function
 int main()
 {
     int board[SIZE][SIZE];
+    int solution[SIZE][SIZE];
     int level;
 
     srand(time(0));
-
     printInstructions();
-    printf("Select Difficulty:\n1. Easy\n2. Medium\n3. Hard\nChoose (1-3): ");
+    printf("Select Difficulty:\n1. Easy (5 hints)\n2. Medium (3 hints)\n3. Hard (1 hint)\nChoose (1-3): ");
     scanf("%d", &level);
 
+    // Set the number of hints
     switch (level)
     {
     case 1:
+        hintsRemaining = 5;
         generateSudoku(board, 1);
         break;
     case 2:
+        hintsRemaining = 3;
         generateSudoku(board, 2);
         break;
     case 3:
+        hintsRemaining = 1;
         generateSudoku(board, 3);
         break;
     default:
@@ -195,9 +244,13 @@ int main()
         return 0;
     }
 
-    printf("Sudoku Puzzle:\n");
-    playSudoku(board);
+    // Save the solution for hint purposes
+    for (int i = 0; i < SIZE; i++)
+        for (int j = 0; j < SIZE; j++)
+            solution[i][j] = board[i][j];
+    solveSudoku(solution, 0, 0);
 
+    playSudoku(board, solution);
     printf("Thanks for playing!\n");
     return 0;
 }
