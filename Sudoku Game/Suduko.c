@@ -10,6 +10,23 @@ int hintsRemaining;
 // Timer-related variables
 time_t startTime, endTime;
 
+// Function prototypes
+void printBoard(int board[SIZE][SIZE]);
+int isSafe(int board[SIZE][SIZE], int row, int col, int num);
+int solveSudoku(int board[SIZE][SIZE], int row, int col);
+void removeDigits(int board[SIZE][SIZE], int level);
+void generateSudoku(int board[SIZE][SIZE], int level);
+void giveHint(int board[SIZE][SIZE], int solution[SIZE][SIZE]);
+int isPuzzleSolved(int board[SIZE][SIZE], int solution[SIZE][SIZE]);
+void saveScore(char* name, int timeTaken, int level);
+void handleWin(int timeTaken, int level);
+void displayScoreboard();
+void saveGameState(int board[SIZE][SIZE], int level, int hintsRemaining, int elapsedTime);
+int loadGameState(int board[SIZE][SIZE], int *level, int *hintsRemaining, int *elapsedTime);
+void playSudoku();
+void showMainMenu();
+void showInstructions();
+
 // Function to print the Sudoku board with clearer formatting
 void printBoard(int board[SIZE][SIZE])
 {
@@ -161,96 +178,296 @@ void giveHint(int board[SIZE][SIZE], int solution[SIZE][SIZE])
     }
 }
 
-// Function to play the Sudoku game
-void playSudoku(int board[SIZE][SIZE], int solution[SIZE][SIZE])
+// Function to check if the Sudoku board is fully and correctly completed
+int isPuzzleSolved(int board[SIZE][SIZE], int solution[SIZE][SIZE])
+{
+    for (int i = 0; i < SIZE; i++)
+    {
+        for (int j = 0; j < SIZE; j++)
+        {
+            if (board[i][j] != solution[i][j])
+            {
+                return 0; // Puzzle is not solved correctly
+            }
+        }
+    }
+    return 1; // Puzzle is solved correctly
+}
+
+// Save the score to a file
+void saveScore(char* name, int timeTaken, int level)
+{
+    FILE *file = fopen("scores.txt", "a");
+    if (file == NULL)
+    {
+        printf("Error: Unable to open file to save score.\n");
+        return;
+    }
+
+    char* difficulty;
+    switch (level)
+    {
+        case 1:
+            difficulty = "Easy";
+            break;
+        case 2:
+            difficulty = "Medium";
+            break;
+        case 3:
+            difficulty = "Hard";
+            break;
+        default:
+            difficulty = "Unknown";
+    }
+
+    fprintf(file, "Player: %s, Time: %d seconds, Difficulty: %s\n", name, timeTaken, difficulty);
+    fclose(file);
+    printf("Score saved successfully!\n");
+}
+
+// Handle winning scenario, display time and ask to save score
+void handleWin(int timeTaken, int level)
+{
+    char name[50];
+    char saveOption;
+
+    printf("\nCongratulations! You've completed the puzzle!\n");
+    printf("Time taken: %d seconds\n", timeTaken);
+
+    printf("Do you want to save your score? (y/n): ");
+    scanf(" %c", &saveOption);
+
+    if (saveOption == 'y' || saveOption == 'Y')
+    {
+        printf("Enter your name: ");
+        scanf("%s", name);
+
+        saveScore(name, timeTaken, level);
+    }
+}
+
+// Display the scoreboard
+void displayScoreboard()
+{
+    FILE *file = fopen("scores.txt", "r");
+    if (file == NULL)
+    {
+        printf("No scores available to display.\n");
+        return;
+    }
+
+    char line[100];
+    printf("\n--- Scoreboard ---\n");
+    while (fgets(line, sizeof(line), file))
+    {
+        printf("%s", line);
+    }
+    fclose(file);
+    printf("\n");
+}
+
+// Save the current game state
+void saveGameState(int board[SIZE][SIZE], int level, int hintsRemaining, int elapsedTime)
+{
+    FILE *file = fopen("saved_game.dat", "wb");
+    if (file == NULL)
+    {
+        printf("Error: Unable to save game.\n");
+        return;
+    }
+
+    fwrite(&level, sizeof(int), 1, file);
+    fwrite(&hintsRemaining, sizeof(int), 1, file);
+    fwrite(&elapsedTime, sizeof(int), 1, file);
+    fwrite(board, sizeof(int), SIZE * SIZE, file);
+
+    fclose(file);
+    printf("Game saved successfully!\n");
+}
+
+// Load a saved game state
+int loadGameState(int board[SIZE][SIZE], int *level, int *hintsRemaining, int *elapsedTime)
+{
+    FILE *file = fopen("saved_game.dat", "rb");
+    if (file == NULL)
+    {
+        return 0; // No saved game
+    }
+
+    fread(level, sizeof(int), 1, file);
+    fread(hintsRemaining, sizeof(int), 1, file);
+    fread(elapsedTime, sizeof(int), 1, file);
+    fread(board, sizeof(int), SIZE * SIZE, file);
+
+    fclose(file);
+    return 1; // Successfully loaded
+}
+
+// Main game play function
+void playSudoku(int board[SIZE][SIZE], int solution[SIZE][SIZE], int level, int loaded, int hintsRemaining, time_t startTime)
 {
     int row, col, num;
-    startTime = time(NULL); // Start the timer
+    char action;
+
+    if (!loaded) {
+        hintsRemaining = 3; // Initial number of hints based on difficulty level
+        time(&startTime);
+        generateSudoku(board, level);
+        
+        // Create the solution board by solving it
+        for (int i = 0; i < SIZE; i++)
+        {
+            for (int j = 0; j < SIZE; j++)
+            {
+                solution[i][j] = board[i][j];
+            }
+        }
+        solveSudoku(solution, 0, 0);
+    }
+
+    printf("Here is your Sudoku puzzle:\n");
+    printBoard(board);
 
     while (1)
     {
-        printBoard(board);
-        printf("Enter row (1-9), column (1-9), and number (1-9) (0 to exit, -1 for hint): ");
-        scanf("%d %d %d", &row, &col, &num);
-        if (row == 0 || col == 0 || num == 0)
-            break;
-        if (row == -1)
+        printf("\nChoose action (e.g. E 3 5 9 to Enter 9 at (3,5); H for Hint; S to Save, Q to Quit): ");
+        scanf(" %c", &action);
+
+        if (action == 'H' || action == 'h')
         {
             giveHint(board, solution);
-            continue;
         }
-        if (row < 1 || row > 9 || col < 1 || col > 9 || num < 1 || num > 9)
+        else if (action == 'S' || action == 's')
         {
-            printf("Invalid input! Please try again.\n");
-            continue;
+            time(&endTime);
+            saveGameState(board, level, hintsRemaining, difftime(endTime, startTime));
         }
-        if (isSafe(board, row - 1, col - 1, num))
+        else if (action == 'Q' || action == 'q')
         {
-            board[row - 1][col - 1] = num;
+            return; // Exit the game
+        }
+        else if (action == 'E' || action == 'e')
+        {
+            scanf("%d %d %d", &row, &col, &num);
+            if (row < 1 || row > SIZE || col < 1 || col > SIZE || num < 1 || num > SIZE)
+            {
+                printf("Invalid input. Please try again.\n");
+            }
+            else if (board[row - 1][col - 1] != 0)
+            {
+                printf("This cell is not empty. Please choose an empty cell.\n");
+            }
+            else if (isSafe(board, row - 1, col - 1, num))
+            {
+                board[row - 1][col - 1] = num;
+                printBoard(board);
+
+                if (isPuzzleSolved(board, solution))
+                {
+                    time(&endTime);
+                    int timeTaken = difftime(endTime, startTime);
+                    handleWin(timeTaken, level);
+
+                    // Ask if the player wants to play again
+                    char replayOption;
+                    printf("Do you want to play again? (y/n): ");
+                    scanf(" %c", &replayOption);
+
+                    if (replayOption == 'y' || replayOption == 'Y')
+                    {
+                        int newBoard[SIZE][SIZE];
+                        int newSolution[SIZE][SIZE];
+                        playSudoku(newBoard, newSolution, level, 0, hintsRemaining, startTime); // Start a new game
+                    }
+                    else
+                    {
+                        return; // End the game
+                    }
+                }
+            }
+            else
+            {
+                printf("Incorrect entry! This number cannot be placed here.\n");
+            }
         }
         else
         {
-            printf("Invalid move. Try again.\n");
+            printf("Invalid action. Please try again.\n");
         }
     }
-
-    endTime = time(NULL);
-    int timeTaken = (int)difftime(endTime, startTime);
-    printf("Time taken: %d seconds\n", timeTaken);
 }
 
-// Print the instructions for the user
-void printInstructions()
+// Main menu function
+void showMainMenu()
 {
-    printf("Welcome to the Sudoku Game!\n");
-    printf("Instructions:\n");
-    printf("1. You will choose a difficulty level: Easy, Medium, or Hard.\n");
-    printf("2. A Sudoku puzzle will be generated with some cells pre-filled.\n");
-    printf("3. Your goal is to fill in the empty cells to complete the puzzle.\n");
-    printf("4. To play, enter the row number (1-9), column number (1-9), and the number (1-9).\n");
-    printf("5. You can exit by entering '0 0 0' or get hints by entering '-1 -1 -1'.\n");
-    printf("6. Good luck and have fun!\n\n");
+    int choice;
+
+    do
+    {
+        printf("\n--- Sudoku Game ---\n");
+        printf("1. Play Sudoku\n");
+        printf("2. View Scoreboard\n");
+        printf("3. Load Previous Game\n");
+        printf("4. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        int board[SIZE][SIZE];
+        int solution[SIZE][SIZE];
+        int level, hintsRemaining, elapsedTime = 0;
+        time_t startTime;
+
+        switch (choice)
+        {
+            case 1:
+                printf("Choose difficulty level (1-Easy, 2-Medium, 3-Hard): ");
+                scanf("%d", &level);
+                playSudoku(board, solution, level, 0, hintsRemaining, startTime);
+                break;
+            case 2:
+                displayScoreboard();
+                break;
+            case 3:
+                if (loadGameState(board, &level, &hintsRemaining, &elapsedTime))
+                {
+                    printf("Loaded saved game found. Resuming...\n");
+                    time(&startTime);
+                    startTime -= elapsedTime; // Adjust timer
+                    playSudoku(board, solution, level, 1, hintsRemaining, startTime); // Resume play
+                }
+                else
+                {
+                    printf("No saved game found.\n");
+                }
+                break;
+            case 4:
+                printf("Exiting game. Thank you for playing!\n");
+                break;
+            default:
+                printf("Invalid choice. Please choose again.\n");
+        }
+    } while (choice != 4);
+}
+
+// Show instructions to the player
+void showInstructions()
+{
+    printf("\nWelcome to the Sudoku game!\n");
+    printf("1. You can choose a difficulty level: Easy, Medium, or Hard.\n");
+    printf("2. You will be given a board with some cells filled in.\n");
+    printf("3. Your goal is to fill the board so that each row, column, and 3x3 box contains the numbers 1 to 9.\n");
+    printf("4. Use the commands shown on the game screen to enter your moves or take actions.\n");
+    printf("5. You can save your progress or use hints if you get stuck.\n");
+    printf("6. Complete the puzzle to win.\n");
+    printf("Good luck!\n");
 }
 
 // Main function
 int main()
 {
-    int board[SIZE][SIZE];
-    int solution[SIZE][SIZE];
-    int level;
-
     srand(time(0));
-    printInstructions();
-    printf("Select Difficulty:\n1. Easy (5 hints)\n2. Medium (3 hints)\n3. Hard (1 hint)\nChoose (1-3): ");
-    scanf("%d", &level);
+    showInstructions();
+    showMainMenu();
 
-    // Set the number of hints
-    switch (level)
-    {
-    case 1:
-        hintsRemaining = 5;
-        generateSudoku(board, 1);
-        break;
-    case 2:
-        hintsRemaining = 3;
-        generateSudoku(board, 2);
-        break;
-    case 3:
-        hintsRemaining = 1;
-        generateSudoku(board, 3);
-        break;
-    default:
-        printf("Invalid choice. Exiting...\n");
-        return 0;
-    }
-
-    // Save the solution for hint purposes
-    for (int i = 0; i < SIZE; i++)
-        for (int j = 0; j < SIZE; j++)
-            solution[i][j] = board[i][j];
-    solveSudoku(solution, 0, 0);
-
-    playSudoku(board, solution);
-    printf("Thanks for playing!\n");
     return 0;
 }
